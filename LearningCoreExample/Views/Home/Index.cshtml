@@ -1,0 +1,129 @@
+﻿@{
+    ViewData["Title"] = "Home Page";
+}
+
+<div class="container">
+    <div class="row">
+        <div class="col-lg-6">
+            <div class="card">
+                <div class="card-header">
+                    <h4>Herkese Açık Oda</h4>
+                </div>
+                <div class="card-body">
+                    <div id="chat">
+                        <ul id="messages" style="width:100%;height:300px;overflow-y:auto"></ul>
+                        <div class="clear">
+                        </div>
+                        <form id="frm-send-message" action="#">
+                            <label for="message">Message:</label>
+                            <input type="text" id="message" />
+                            <input type="submit" id="send" value="Send" />
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-6">
+            <div class="card-header">
+                <h4>Gruba katıl</h4>
+            </div>
+            <div class="card-body">
+                <div id="chat">
+                    <ul id="groupMessages" style="display:none;width:100%;height:300px;overflow-y:auto"></ul>
+                    <div class="clear">
+                    </div>
+                    <form id="frm-add-group" action="#">
+                        <label for="groupName">Group Name:</label>
+                        <input type="text" id="groupName" />
+                        <input type="submit" id="send" value="Connect" />
+                    </form>
+                    <form id="frm-send-group-message" style="display:none" action="#">
+                        <label for="groupMessage">Message:</label>
+                        <input type="text" id="groupMessage" />
+                        <input type="submit" id="send" value="Send" />
+                        <input type="submit" id="removeGroup" value="Gruptan Çık" />
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+@section Scripts{
+    <script>
+        var userName = prompt("Please enter your name", "emirhan");
+        var groupName = "";
+        if (userName != null) {
+
+            // Signalr bağlantısını yapıyoruz
+            const connection = new signalR.HubConnectionBuilder()
+                .withUrl("/chat")
+                .build();
+
+            // Bağlantı açıldığında kullanıcının ismini tanımlıyoruz
+            connection.start().then(() => {
+                connection.invoke("setUser", userName);
+            }).catch(err => console.error(err.toString()));
+
+            // Send mesajlarını dinliyoruz ve basıyoruz
+            connection.on('Send', (user,message) => {
+                appendLine(user,message);
+            });
+
+            // Grouptan gelen mesajları SendGroup ile dinliyoruz ve basıyoruz
+            connection.on('SendGroup', (user, message) => {
+                appendGroupLine(user, message);
+            });
+
+            // Herkese açık odaya mesaj basıyoruz
+            document.getElementById('frm-send-message').addEventListener('submit', event => {
+                let message = document.getElementById('message').value;
+                document.getElementById('message').value = '';
+                connection.invoke('SendPublicRoom', message);
+                event.preventDefault();
+            });
+
+            // Gruba katılma işlemlerini yapıyoruz
+            document.getElementById('frm-add-group').addEventListener('submit', event => {
+                groupName = document.getElementById('groupName').value;
+                document.getElementById('groupName').value = '';
+                $("#frm-add-group").hide();
+                $("#groupMessages").show();
+                $("#frm-send-group-message").show();
+                connection.invoke('AddToGroup', groupName);
+                event.preventDefault();
+            });
+
+            // Gruba mesaj basıyoruz
+            document.getElementById('frm-send-group-message').addEventListener('submit', event => {
+                let groupMessage = document.getElementById('groupMessage').value;
+                document.getElementById('groupMessage').value = '';
+                connection.invoke('SendGroupMessage', groupName, groupMessage);
+                event.preventDefault();
+            });
+
+            // Gruptan çıkma işlemlerii yapıyoruz
+            $("#removeGroup").click(function () {
+                $("#groupMessages").hide();
+                $("#frm-send-group-message").hide();
+                $("#frm-add-group").show();
+                connection.invoke('RemoveFromGroup', groupName);
+            });
+
+            // Verileri HTML'e basıyoruz
+            function appendLine(user,line) {
+                let li = document.createElement('li');
+                li.innerHTML = "<p><b style='text-transform:capitalize'>" + user + ": </b>"+line+"</p>";
+                document.getElementById('messages').appendChild(li);
+            };
+
+            // Verileri grup HTML'ine basıyoruz
+            function appendGroupLine(user, line) {
+                let li = document.createElement('li');
+                li.innerHTML = "<p><b style='text-transform:capitalize'>" + user + ": </b>"+line+"</p>";
+                document.getElementById('groupMessages').appendChild(li);
+            };
+        }
+    </script>
+}
